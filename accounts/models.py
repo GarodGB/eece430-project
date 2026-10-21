@@ -10,6 +10,9 @@ class Pharmacy(models.Model):
     longitude = models.FloatField(null=True, blank=True)
     shares_stock = models.BooleanField(default=False)
 
+    class Meta:
+        verbose_name_plural = 'Pharmacies'
+
     def __str__(self):
         return self.name
 
