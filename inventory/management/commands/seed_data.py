@@ -1,4 +1,3 @@
-
 from datetime import date, timedelta
 from decimal import Decimal
 from random import Random
@@ -6,7 +5,7 @@ from random import Random
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from accounts.models import Pharmacy
+from accounts.models import Pharmacy, User  # CHANGED: added User
 from inventory.models import Medicine, Stock
 from prediction.models import DailySales, StockAlert, Supplier
 
@@ -49,7 +48,8 @@ class Command(BaseCommand):
                 defaults={
                     "address": address,
                     "phone": "00000000",
-                    "shares_stock": True,
+                    # CHANGED: Verdun does not share (privacy demo)
+                    "shares_stock": name != "Demo Pharmacy Verdun",
                 },
             )
             pharmacies.append(pharmacy)
@@ -264,6 +264,50 @@ class Command(BaseCommand):
             )
 
         self.stdout.write("30 demo stock alerts prepared.")
+
+        # ---------------------------------------
+        # 7. CREATE DEMO USERS  (NEW)
+        # ---------------------------------------
+
+        if not User.objects.filter(username="admin").exists():
+            User.objects.create_superuser(
+                "admin", "admin@example.com", "Pharma2026", role="admin"
+            )
+
+        for username, pharmacy_index in [("rami", 0), ("maya", 1)]:
+            if not User.objects.filter(username=username).exists():
+                User.objects.create_user(
+                    username,
+                    password="Pharma1234!",
+                    role="pharmacist",
+                    pharmacy=pharmacies[pharmacy_index],
+                )
+
+        self.stdout.write("Demo users prepared (admin, rami, maya).")
+        
+        
+        
+        
+                # ---------------------------------------
+        # 8. DEMO EXPIRY CASES (PHAR-6)
+        # ---------------------------------------
+
+        beirut = pharmacies[0]
+        demo_expiry = [
+            (medicines[0], date(2026, 11, 25), 12),  # expiring soon
+            (medicines[1], date(2026, 11, 30), 6),   # expiring soon + low stock
+            (medicines[2], date(2026, 11, 1), 8),    # already expired
+        ]
+
+        for medicine, expiry_date, quantity in demo_expiry:
+            Stock.objects.get_or_create(
+                pharmacy=beirut,
+                medicine=medicine,
+                expiry_date=expiry_date,
+                defaults={"quantity": quantity, "reorder_level": 10},
+            )
+
+        self.stdout.write("Demo expiry cases prepared.")
 
         # ---------------------------------------
         # COMPLETE
