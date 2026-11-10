@@ -1,12 +1,16 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from django.core.exceptions import ValidationError 
+from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 
 
 class Pharmacy(models.Model):
     name = models.CharField(max_length=100)
     address = models.CharField(max_length=200)
-    phone = models.CharField(max_length=20)
+    phone = models.CharField(
+        max_length=20,
+        validators=[RegexValidator(r'^[\d +]+$', 'Phone can only contain digits, spaces and +.')],
+    )
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     shares_stock = models.BooleanField(default=False)
@@ -27,7 +31,7 @@ class User(AbstractUser):
     ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='pharmacist')
     pharmacy = models.ForeignKey(Pharmacy, on_delete=models.SET_NULL, null=True, blank=True)
-    
+
     def clean(self):
         if self.is_superuser and self.pharmacy:
             raise ValidationError("A system admin can't belong to a pharmacy.")
@@ -38,5 +42,3 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.username} ({self.role})"
-
-   
