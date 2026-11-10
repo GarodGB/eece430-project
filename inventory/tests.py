@@ -112,3 +112,130 @@ class MedicineSearchTests(TestCase):
             response.status_code,
             status.HTTP_401_UNAUTHORIZED
         )
+
+from datetime import date, timedelta
+from inventory.models import Stock
+
+
+class StockManagementTests(TestCase):
+
+    def setUp(self):
+        self.pharmacy1 = Pharmacy.objects.create(
+            name="Beirut Test Pharmacy",
+            address="Beirut",
+            phone="11111111"
+        )
+        self.pharmacy2 = Pharmacy.objects.create(
+            name="Baabda Test Pharmacy",
+            address="Baabda",
+            phone="22222222"
+        )
+
+        self.pharmacist = User.objects.create_user(
+            username="stockpharmacist",
+            password="TestPassword123!",
+            role="pharmacist",
+            pharmacy=self.pharmacy1
+        )
+
+        self.admin = User.objects.create_superuser(
+            username="stockadmin",
+            password="TestPassword123!"
+        )
+
+        medicine1 = Medicine.objects.create(
+            name="Test Medicine A",
+            barcode="STOCK001",
+            price="5.00",
+            cost="3.00"
+        )
+        medicine2 = Medicine.objects.create(
+            name="Test Medicine B",
+            barcode="STOCK002",
+            price="6.00",
+            cost="4.00"
+        )
+
+        self.low_stock = Stock.objects.create(
+            pharmacy=self.pharmacy1,
+            medicine=medicine1,
+            quantity=4,
+            reorder_level=10,
+            expiry_date=date.today() + timedelta(days=15)
+        )
+
+        self.normal_stock = Stock.objects.create(
+            pharmacy=self.pharmacy1,
+            medicine=medicine2,
+            quantity=20,
+            reorder_level=10,
+            expiry_date=date.today() + timedelta(days=90)
+        )
+
+        self.other_stock = Stock.objects.create(
+            pharmacy=self.pharmacy2,
+            medicine=medicine1,
+            quantity=8,
+            reorder_level=10,
+            expiry_date=date.today() + timedelta(days=60)
+        )
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.pharmacist)
+
+    # Test 1: Pharmacist can see their pharmacy's stock
+    def test_pharmacist_can_view_own_stock(self):
+        response = self.client.get("/api/stock/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 2)
+
+        returned_ids = {item["id"] for item in response.data}
+        self.assertIn(self.low_stock.id, returned_ids)
+        self.assertIn(self.normal_stock.id, returned_ids)
+
+    # Test 2: Pharmacist cannot see another pharmacy's stock
+    def test_pharmacist_cannot_view_other_stock(self):
+        response = self.client.get("/api/stock/")
+
+        returned_ids = {item["id"] for item in response.data}
+        self.assertNotIn(self.other_stock.id, returned_ids)
+
+    # Test 3: System admin can see all pharmacies' stock
+    def test_admin_can_view_all_stock(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get("/api/stock/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 3)
+
+    # Test 4: Low-stock detection
+    def test_low_stock_detection(self):
+        response = self.client.get("/api/stock/")
+
+        results = {item["id"]: item for item in response.data}
+
+        self.assertTrue(results[self.low_stock.id]["is_low"])
+        self.assertFalse(results[self.normal_stock.id]["is_low"])
+
+    # Test 5: Expiring-soon detection
+    def test_expiring_soon_detection(self):
+        response = self.client.get("/api/stock/")
+
+        results = {item["id"]: item for item in response.data}
+
+        self.assertTrue(
+            results[self.low_stock.id]["expiring_soon"]
+        )
+        self.assertFalse(
+            results[self.normal_stock.id]["expiring_soon"]
+        )
+
+    # Test 6: Unauthenticated users cannot see stock
+    def test_stock_requires_authentication(self):
+        anonymous_client = APIClient()
+
+        response = anonymous_client.get("/api/stock/")
+
+        self.assertEqual(response.status_code, 401)
