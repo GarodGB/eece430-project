@@ -59,7 +59,7 @@ export default function PointOfSale({ api, user, onSale }) {
       await onSale()
     } catch (failure) {
       setError(failure.message)
-      if (!failure.status || failure.status >= 500) setUncertain(true)
+      if (!failure.notSent && (!failure.status || failure.status >= 500)) setUncertain(true)
     } finally { saleInFlight.current = false; setSelling(false) }
   }
 

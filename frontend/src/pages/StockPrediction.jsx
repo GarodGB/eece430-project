@@ -34,7 +34,7 @@ const summaries = [
   ['Forecast window', '7 days', 'Sample update: 9:00 AM'],
 ]
 
-export default function StockPrediction() {
+export default function StockPrediction({ onOpenInventory }) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('At risk')
   const [summaryEnabled, setSummaryEnabled] = useState(true)
@@ -236,7 +236,7 @@ export default function StockPrediction() {
           </p>
           <button
             type="button"
-            onClick={() => setMessage('The Inventory page will be added later.')}
+            onClick={onOpenInventory}
             className="font-bold text-teal-700"
           >
             View full inventory →

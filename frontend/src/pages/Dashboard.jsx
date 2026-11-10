@@ -173,7 +173,7 @@ export default function Dashboard({ user, api, onLogout }) {
           </div>
           {activePage === 'Inventory' && <Inventory stock={stock} loading={stockLoading} error={stockError} onRefresh={refreshStock} />}
           {activePage === 'Medicine Finder' && <MedicineFinder api={api} />}
-          {activePage === 'Stock Prediction' && <><p className="text-sm text-slate-600">Preview with sample data — planned for a later sprint.</p><StockPrediction /></>}
+          {activePage === 'Stock Prediction' && <><p className="text-sm text-slate-600">Preview with sample data — planned for a later sprint.</p><StockPrediction onOpenInventory={() => { setActivePage('Inventory'); setMessage('') }} /></>}
           {activePage === 'AI Assistant' && <><p className="text-sm text-slate-600">Preview with sample data — planned for a later sprint.</p><AIAssistant onOpenFinder={() => setActivePage('Medicine Finder')} /></>}
           {message && <div role="status" className="flex items-center justify-between gap-4 rounded-xl bg-white p-4 text-sm"><p>{message}</p><button aria-label="Dismiss message" onClick={() => setMessage('')} className="px-2 text-xl">×</button></div>}
         </main>

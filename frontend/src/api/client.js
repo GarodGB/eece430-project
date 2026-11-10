@@ -25,22 +25,59 @@ export function apiPath(path) {
   return url.pathname + url.search
 }
 
-export function createApi(accessToken, onExpired) {
+export function createApi(accessToken, onExpired, refreshToken) {
   let expired = false
-  async function request(path, options = {}) {
+  let refreshing = null
+  function expire() {
+    if (!expired) { expired = true; onExpired() }
+    return new ApiError('Your session expired. Please log in again.', 401)
+  }
+  async function refresh() {
+    if (expired || !refreshToken) throw expire()
+    if (!refreshing) {
+      refreshing = (async () => {
+        let response
+        try {
+          response = await fetch('/api/token/refresh/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh: refreshToken }),
+          })
+        } catch {
+          throw new ApiError('Cannot renew your session. Check your connection and try again.')
+        }
+        if ([400, 401, 403].includes(response.status)) throw expire()
+        const data = await response.json().catch(() => null)
+        if (!response.ok || typeof data?.access !== 'string' || !data.access) {
+          throw new ApiError('Cannot renew your session right now. Please try again.')
+        }
+        accessToken = data.access
+        if (data.refresh) refreshToken = data.refresh
+      })().finally(() => { refreshing = null })
+    }
+    return refreshing
+  }
+  async function request(path, options = {}, retried = false) {
+    if (expired) throw expire()
+    options.signal?.throwIfAborted()
+    const sentToken = accessToken
     let response
     try {
       response = await fetch(apiPath(path), {
         ...options,
-        headers: { 'Content-Type': 'application/json', ...options.headers, Authorization: `Bearer ${accessToken}` },
+        headers: { 'Content-Type': 'application/json', ...options.headers, Authorization: `Bearer ${sentToken}` },
       })
     } catch (error) {
       if (error.name === 'AbortError' || error instanceof ApiError) throw error
       throw new ApiError('Cannot reach the server. Check your connection and that Docker is running.')
     }
     if (response.status === 401) {
-      if (!expired) { expired = true; onExpired() }
-      throw new ApiError('Your session expired. Please log in again.', 401)
+      // Only reads may be replayed. Never automatically resubmit a sale.
+      if (!retried && (!options.method || options.method === 'GET') && refreshToken) {
+        if (sentToken === accessToken) await refresh()
+        return request(path, options, true)
+      }
+      throw expire()
     }
     const data = await response.json().catch(() => null)
     if (!response.ok) {
@@ -68,6 +105,13 @@ export function createApi(accessToken, onExpired) {
     stock: (signal) => list('/api/stock/', { signal }),
     medicines: (search, signal) => list(`/api/medicines/?search=${encodeURIComponent(search)}`, { signal }),
     finder: (query, signal) => list(`/api/finder/?q=${encodeURIComponent(query)}`, { signal }),
-    sale: (payload) => request('/api/sales/', { method: 'POST', body: JSON.stringify(payload) }),
+    sale: async (payload) => {
+      // Renew before checkout so the POST is sent once with a fresh token.
+      if (refreshToken) {
+        try { await refresh() }
+        catch (error) { error.notSent = true; throw error }
+      }
+      return request('/api/sales/', { method: 'POST', body: JSON.stringify(payload) })
+    },
   }
 }
