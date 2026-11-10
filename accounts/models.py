@@ -27,7 +27,6 @@ class User(AbstractUser):
         ('admin', 'System admin'),
         ('owner', 'Owner'),
         ('pharmacist', 'Pharmacist'),
-        ('assistant', 'Assistant'),
     ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='pharmacist')
     pharmacy = models.ForeignKey(Pharmacy, on_delete=models.SET_NULL, null=True, blank=True)
