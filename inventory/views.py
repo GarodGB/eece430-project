@@ -1,8 +1,11 @@
-from rest_framework import generics, filters
-from .models import Medicine
-from .serializers import MedicineSerializer
-from .models import Stock
-from .serializers import StockSerializer
+from datetime import date
+
+from django.db.models import IntegerField, OuterRef, Subquery, Sum
+from django.db.models.functions import Coalesce
+from rest_framework import filters, generics
+
+from .models import Medicine, Stock
+from .serializers import MedicineSerializer, StockSerializer
 
 
 class MedicineSearchView(generics.ListAPIView):
@@ -10,10 +13,6 @@ class MedicineSearchView(generics.ListAPIView):
     serializer_class = MedicineSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'generic_name', 'barcode']
-    
-    
-    
-
 
 
 class MyStockView(generics.ListAPIView):
@@ -21,6 +20,25 @@ class MyStockView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
+
+        # Total valid (not expired) quantity of the same medicine in the same pharmacy,
+        # calculated by the database for every row in one query.
+        total_valid = (
+            Stock.objects
+            .filter(
+                pharmacy=OuterRef('pharmacy'),
+                medicine=OuterRef('medicine'),
+                expiry_date__gte=date.today(),
+            )
+            .values('pharmacy', 'medicine')
+            .annotate(total=Sum('quantity'))
+            .values('total')
+        )
+
+        stocks = Stock.objects.select_related('medicine').annotate(
+            total_quantity=Coalesce(Subquery(total_valid, output_field=IntegerField()), 0)
+        ).order_by('expiry_date')
+
         if user.is_superuser:
-            return Stock.objects.all().order_by('expiry_date')
-        return Stock.objects.filter(pharmacy=user.pharmacy).order_by('expiry_date')
+            return stocks
+        return stocks.filter(pharmacy=user.pharmacy)

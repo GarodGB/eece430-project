@@ -30,7 +30,7 @@ export default function Inventory({ stock, loading, error, onRefresh }) {
             <td className="px-5 py-4 font-semibold">{item.medicine_name}</td><td className="px-5 py-4">{item.id}</td>
             <td className="px-5 py-4">{item.quantity}</td><td className="px-5 py-4">{item.reorder_level}</td>
             <td className="px-5 py-4">{item.expiry_date || 'Not supplied'}</td>
-            <td className="px-5 py-4 text-amber-800">{[item.is_low && 'Low stock', item.expiring_soon && 'Expires within 30 days or already expired'].filter(Boolean).join(' · ') || '—'}</td>
+            <td className="px-5 py-4 text-amber-800">{[item.is_expired && 'Expired', item.is_low && 'Low stock', item.expiring_soon && 'Expires within 30 days'].filter(Boolean).join(' · ') || '—'}</td>
           </tr>)}</tbody>
         </table>
       </div>}

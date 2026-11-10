@@ -14,17 +14,14 @@ from .serializers import SaleCreateSerializer, SaleSerializer
 def create_sale(request):
     user = request.user
 
-    
     if not user.pharmacy:
         return Response({'error': 'You must belong to a pharmacy to sell.'},
                         status=status.HTTP_400_BAD_REQUEST)
 
-    
     input_data = SaleCreateSerializer(data=request.data)
     input_data.is_valid(raise_exception=True)
     data = input_data.validated_data
 
-    
     with transaction.atomic():
         sale = Sale.objects.create(
             pharmacy=user.pharmacy,
@@ -34,27 +31,28 @@ def create_sale(request):
         total = Decimal('0')
 
         for item in data['items']:
-           
             try:
                 medicine = Medicine.objects.get(barcode=item['barcode'])
             except Medicine.DoesNotExist:
                 raise serializers.ValidationError(
                     f"No medicine with barcode {item['barcode']}.")
 
-            
-            stocks = Stock.objects.filter(
-                pharmacy=user.pharmacy,
-                medicine=medicine,
-                quantity__gt=0,
-                expiry_date__gte=date.today(),
-            ).order_by('expiry_date')
+            # Fix 3: select_for_update() locks these rows until the sale finishes,
+            # so two sales at the same moment can't both take the last boxes.
+            stocks = list(
+                Stock.objects.select_for_update().filter(
+                    pharmacy=user.pharmacy,
+                    medicine=medicine,
+                    quantity__gt=0,
+                    expiry_date__gte=date.today(),
+                ).order_by('expiry_date')
+            )
 
             available = sum(s.quantity for s in stocks)
             if available < item['quantity']:
                 raise serializers.ValidationError(
                     f"Not enough {medicine.name} ({available} left).")
 
-            
             remaining = item['quantity']
             for s in stocks:
                 take = min(s.quantity, remaining)
@@ -64,7 +62,6 @@ def create_sale(request):
                 if remaining == 0:
                     break
 
-           
             SaleItem.objects.create(
                 sale=sale,
                 medicine=medicine,
@@ -76,5 +73,4 @@ def create_sale(request):
         sale.total = total
         sale.save()
 
-    
     return Response(SaleSerializer(sale).data, status=status.HTTP_201_CREATED)
