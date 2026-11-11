@@ -1,5 +1,5 @@
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from django.db import transaction
 from rest_framework import status, serializers
 from rest_framework.decorators import api_view
@@ -28,7 +28,8 @@ def create_sale(request):
             sold_by=user,
             payment_method=data['payment_method'],
         )
-        total = Decimal('0')
+        subtotal = Decimal('0')
+        cost_total = Decimal('0')
 
         for item in data['items']:
             try:
@@ -67,9 +68,28 @@ def create_sale(request):
                 medicine=medicine,
                 quantity=item['quantity'],
                 unit_price=medicine.price,
+                unit_cost=medicine.cost,
             )
-            total += medicine.price * item['quantity']
+            subtotal += medicine.price * item['quantity']
+            cost_total += medicine.cost * item['quantity']
 
+        # Discount on the whole receipt.
+        discount = data['discount_percent']
+        total = (subtotal * (100 - discount) / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        # A discount must never make the customer pay below cost.
+        if discount > 0 and total < cost_total:
+            max_discount = ((subtotal - cost_total) / subtotal * 100).quantize(
+                Decimal('0.01'), rounding=ROUND_DOWN)
+            if max_discount <= 0:
+                raise serializers.ValidationError(
+                    "No discount is possible on this sale: it is already at cost.")
+            raise serializers.ValidationError(
+                f"This discount would sell below cost. "
+                f"Maximum discount for this sale: {max_discount}%.")
+
+        sale.subtotal = subtotal
+        sale.discount_percent = discount
         sale.total = total
         sale.save()
 

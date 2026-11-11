@@ -28,6 +28,11 @@ class Medicine(models.Model):
     )
     needs_prescription = models.BooleanField(default=False)
 
+    def clean(self):
+        # The selling price can't be lower than the buying price.
+        if self.price is not None and self.cost is not None and self.cost > self.price:
+            raise ValidationError({'price': "Price can't be lower than cost."})
+
     def __str__(self):
         return self.name
 
