@@ -14,8 +14,56 @@ export default function PointOfSale({ api, user, onSale }) {
   const [uncertain, setUncertain] = useState(false)
   const input = useRef(null)
   const searchController = useRef(null)
+  const liveSearchTimer = useRef(null)
   const saleInFlight = useRef(false)
   useEffect(() => () => searchController.current?.abort(), [])
+
+  // Search medicines automatically as the user types
+  useEffect(() => {
+    const term = query.trim()
+
+    if (!term || selling || uncertain) return
+
+    const controller = new AbortController()
+
+    const timer = setTimeout(async () => {
+      if (controller.signal.aborted) return
+
+      searchController.current?.abort()
+      searchController.current = controller
+      setSearching(true)
+
+      try {
+        const medicines = await api.medicines(
+          term,
+          controller.signal
+        )
+
+        if (!controller.signal.aborted) {
+          setResults(medicines)
+          setError('')
+        }
+      } catch (failure) {
+        if (
+          !controller.signal.aborted &&
+          failure.name !== 'AbortError'
+        ) {
+          setError(failure.message)
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setSearching(false)
+        }
+      }
+    }, 300)
+    liveSearchTimer.current = timer
+
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [query, api, selling, uncertain])
+
 
   function add(medicine) {
     try { setCart(addMedicine(cart, medicine)); setError(''); setNotice('') }
@@ -25,6 +73,7 @@ export default function PointOfSale({ api, user, onSale }) {
   async function search(event) {
     event.preventDefault()
     if (!query.trim() || saleInFlight.current || uncertain) return
+    clearTimeout(liveSearchTimer.current)
     searchController.current?.abort()
     const controller = new AbortController()
     searchController.current = controller
@@ -72,9 +121,21 @@ export default function PointOfSale({ api, user, onSale }) {
   return <section className="rounded-3xl bg-white p-5 lg:p-7">
     <h1 className="mb-8 text-3xl font-medium text-[#171717]"><span aria-hidden="true" className="mr-4 text-slate-400">▱</span>Point of Sale</h1>
     <form onSubmit={search} className="mb-3 flex flex-wrap gap-2">
-      <input ref={input} aria-label="Search medicine or barcode" value={query} disabled={locked} onChange={event => setQuery(event.target.value)} placeholder="Scan a barcode or type a medicine name…" className="h-11 min-w-0 flex-1 rounded-xl bg-[#F0F0F0] px-4 text-sm outline-none focus:ring-2 focus:ring-teal-600" />
+      <input ref={input} aria-label="Search medicine or barcode" value={query} disabled={locked} onChange={event => {
+        searchController.current?.abort()
+        setQuery(event.target.value)
+        setResults(null)
+        setError('')
+        setSearching(false)
+      }} onKeyDown={event => {
+        // Keep scanner/keyboard Enter-to-add behavior without a submit button.
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          void search(event)
+        }
+      }} placeholder="Scan a barcode or type a medicine name…" className="h-11 min-w-0 flex-1 rounded-xl bg-[#F0F0F0] px-4 text-sm outline-none focus:ring-2 focus:ring-teal-600" />
       <button type="button" disabled={locked} onClick={() => { input.current?.focus(); setNotice('Scan into the search field. Press Enter if your scanner does not send it automatically.') }} className="rounded-xl bg-[#19243F] px-5 py-2 text-white">Scan</button>
-      <button disabled={locked || searching || !query.trim()} className="rounded-xl bg-[#0B827B] px-4 py-2 text-white disabled:opacity-50">{searching ? 'Searching…' : 'Search / Add barcode'}</button>
+
     </form>
     <p className="mb-5 text-xs text-[#6A7C94]">Use a keyboard barcode scanner or enter a barcode and press Enter. Exact barcode matches are added directly.</p>
     {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
