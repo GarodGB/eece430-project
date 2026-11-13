@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from decimal import Decimal
 from random import Random
+import os
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -144,15 +145,12 @@ class Command(BaseCommand):
 
         self.stdout.write("100 demo medicines prepared.")
 
+
         # ---------------------------------------
         # 3. CREATE 750 STOCK RECORDS
         # ---------------------------------------
 
         stock_records = []
-        expiry = date(2027, 12, 31)
-
-        # Each pharmacy receives 50 of the
-        # 100 different medicines.
 
         for pharmacy_index, pharmacy in enumerate(pharmacies):
             for index in range(50):
@@ -167,19 +165,63 @@ class Command(BaseCommand):
                     pharmacy_index * 11 + index * 7
                 ) % 61
 
-                stock, created = Stock.objects.get_or_create(
+                # Different reorder levels: 5 to 25
+                reorder_level = 5 + (
+                    (pharmacy_index * 13 + index * 7) % 21
+                )
+
+                # Different expiry dates:
+                # Some expired, some expiring soon,
+                # and some with longer shelf lives.
+
+                # Different expiry dates throughout 2027 and 2028
+                days_until_expiry = (
+                    pharmacy_index * 41 + index * 17
+                ) % 730
+
+                expiry_date = date(2027, 1, 1) + timedelta(
+                    days=days_until_expiry
+                )
+
+                # Reuse the original stock record.
+                # This avoids creating duplicates when
+                # updating its expiry date.
+                stock = Stock.objects.filter(
                     pharmacy=pharmacy,
                     medicine=medicine,
-                    expiry_date=expiry,
-                    defaults={
-                        "quantity": quantity,
-                        "reorder_level": 10,
-                    },
-                )
+                ).order_by("id").first()
+
+                if stock is None:
+                    stock = Stock.objects.create(
+                        pharmacy=pharmacy,
+                        medicine=medicine,
+                        quantity=quantity,
+                        reorder_level=reorder_level,
+                        expiry_date=expiry_date,
+                    )
+                else:
+                    changes = []
+
+                    # Update old default reorder levels.
+                    if stock.reorder_level == 10:
+                        stock.reorder_level = reorder_level
+                        changes.append("reorder_level")
+
+                    # Update old default expiry dates.
+                    if stock.expiry_date.year < 2027 or stock.expiry_date == date(2027, 12, 31):
+                        stock.expiry_date = expiry_date
+                        changes.append("expiry_date")
+
+                    if changes:
+                        stock.save(update_fields=changes)
 
                 stock_records.append(stock)
 
-        self.stdout.write("750 demo stock records prepared.")
+        self.stdout.write(
+            "750 demo stock records prepared."
+        )
+
+
 
         # ---------------------------------------
         # 4. CREATE 1000 DAILY SALES RECORDS
@@ -217,21 +259,29 @@ class Command(BaseCommand):
 
         self.stdout.write("1000 daily sales records prepared.")
 
+
         # ---------------------------------------
         # 5. CREATE 15 SUPPLIERS
         # ---------------------------------------
 
         for index in range(1, 16):
+            phone = f"000000{index:02d}"
 
-            Supplier.objects.get_or_create(
+            supplier, created = Supplier.objects.get_or_create(
                 name=f"Demo Supplier {index:02d}",
                 defaults={
-                    "phone": "00000000",
+                    "phone": phone,
                     "email": f"supplier{index:02d}@example.com",
                 },
             )
 
+            # Update existing placeholder numbers only
+            if not created and supplier.phone == "00000000":
+                supplier.phone = phone
+                supplier.save(update_fields=["phone"])
+
         self.stdout.write("15 demo suppliers prepared.")
+
 
         # ---------------------------------------
         # 6. CREATE 30 STOCK ALERTS
@@ -265,49 +315,124 @@ class Command(BaseCommand):
 
         self.stdout.write("30 demo stock alerts prepared.")
 
+
         # ---------------------------------------
-        # 7. CREATE DEMO USERS  (NEW)
+        # 7. CREATE DEMO USERS
         # ---------------------------------------
 
-        if not User.objects.filter(username="admin").exists():
-            User.objects.create_superuser(
-                "admin", "admin@example.com", "Pharma2026", role="admin"
+        # Password supplied through an environment variable,
+        # never hardcoded into the GitHub repository.
+        demo_password = os.environ.get("DEMO_USER_PASSWORD")
+
+        if not demo_password:
+            self.stdout.write(
+                "Demo users skipped: DEMO_USER_PASSWORD not set."
             )
+        else:
+            owners_created = 0
+            pharmacists_created = 0
 
-        for username, pharmacy_index in [("rami", 0), ("maya", 1)]:
-            if not User.objects.filter(username=username).exists():
-                User.objects.create_user(
-                    username,
-                    password="Pharma1234!",
-                    role="pharmacist",
-                    pharmacy=pharmacies[pharmacy_index],
+            for index, pharmacy in enumerate(pharmacies, start=1):
+
+                # One owner per pharmacy
+                owner_username = f"demo_owner_{index:02d}"
+
+                if not User.objects.filter(
+                    username=owner_username
+                ).exists():
+                    User.objects.create_user(
+                        username=owner_username,
+                        password=demo_password,
+                        role="owner",
+                        pharmacy=pharmacy,
+                    )
+                    owners_created += 1
+
+                # One pharmacist per pharmacy
+                pharmacist_username = (
+                    f"demo_pharmacist_{index:02d}"
                 )
 
-        self.stdout.write("Demo users prepared (admin, rami, maya).")
+                if not User.objects.filter(
+                    username=pharmacist_username
+                ).exists():
+                    User.objects.create_user(
+                        username=pharmacist_username,
+                        password=demo_password,
+                        role="pharmacist",
+                        pharmacy=pharmacy,
+                    )
+                    pharmacists_created += 1
+
+            self.stdout.write(
+                f"Created {owners_created} owners and "
+                f"{pharmacists_created} pharmacists."
+            )
+            self.stdout.write(
+                "Existing users and passwords preserved."
+            )
+
         
         
         
         
-                # ---------------------------------------
+
+        # ---------------------------------------
         # 8. DEMO EXPIRY CASES (PHAR-6)
         # ---------------------------------------
 
         beirut = pharmacies[0]
+
+        # Replace the original 2026 expiry dates
+        # with different dates in 2027.
         demo_expiry = [
-            (medicines[0], date(2026, 11, 25), 12),  # expiring soon
-            (medicines[1], date(2026, 11, 30), 6),   # expiring soon + low stock
-            (medicines[2], date(2026, 11, 1), 8),    # already expired
+            (
+                medicines[0],
+                date(2026, 11, 25),
+                date(2027, 1, 15),
+                12,
+            ),
+            (
+                medicines[1],
+                date(2026, 11, 30),
+                date(2027, 2, 10),
+                6,
+            ),
+            (
+                medicines[2],
+                date(2026, 11, 1),
+                date(2027, 3, 5),
+                8,
+            ),
         ]
 
-        for medicine, expiry_date, quantity in demo_expiry:
-            Stock.objects.get_or_create(
+        for medicine, old_date, new_date, quantity in demo_expiry:
+
+            old_stock = Stock.objects.filter(
                 pharmacy=beirut,
                 medicine=medicine,
-                expiry_date=expiry_date,
-                defaults={"quantity": quantity, "reorder_level": 10},
-            )
+                expiry_date=old_date,
+            ).first()
 
-        self.stdout.write("Demo expiry cases prepared.")
+            if old_stock:
+                old_stock.expiry_date = new_date
+                old_stock.save(update_fields=["expiry_date"])
+            else:
+                Stock.objects.get_or_create(
+                    pharmacy=beirut,
+                    medicine=medicine,
+                    expiry_date=new_date,
+                    defaults={
+                        "quantity": quantity,
+                        "reorder_level": 10,
+                    },
+                )
+
+        self.stdout.write(
+            "Demo 2027+ expiry cases prepared."
+        )
+
+
 
         # ---------------------------------------
         # COMPLETE
