@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { addMedicine, cartTotal, discountPercent, discountedTotal, money, priceCents, salePayload } from '../api/cart'
+import ReceiptModal from './ReceiptModal'
 
 export default function PointOfSale({ api, user, onSale }) {
   const [query, setQuery] = useState('')
@@ -7,6 +8,8 @@ export default function PointOfSale({ api, user, onSale }) {
   const [cart, setCart] = useState([])
   const [payment, setPayment] = useState('cash')
   const [discount, setDiscount] = useState('')
+  const [lastReceipt, setLastReceipt] = useState(null)
+  const [receiptOpen, setReceiptOpen] = useState(false)
   const [searching, setSearching] = useState(false)
   const [selling, setSelling] = useState(false)
   const [error, setError] = useState('')
@@ -104,10 +107,18 @@ export default function PointOfSale({ api, user, onSale }) {
     setSelling(true); setError(''); setNotice('')
     try {
       const sale = await api.sale(payload)
-      setCart([]); setResults(null); setDiscount('')
+      setCart([]); setResults(null); setDiscount(''); setQuery('')
+      // Store the server-confirmed sale, not the cart's estimated totals.
+      setLastReceipt(sale)
+      setReceiptOpen(true)
       const discountNote = Number(sale.discount_percent) > 0 ? ` (subtotal $${sale.subtotal}, ${sale.discount_percent}% discount)` : ''
       setNotice(`Sale #${sale.id} completed. Server total: $${sale.total}${discountNote}.`)
-      await onSale()
+      // Stock refresh failure must not turn an already recorded sale into a failed checkout.
+      try {
+        await onSale()
+      } catch {
+        setError('Sale completed, but stock could not refresh. Use Inventory to refresh stock.')
+      }
     } catch (failure) {
       setError(failure.message)
       if (!failure.notSent && (!failure.status || failure.status >= 500)) setUncertain(true)
@@ -140,6 +151,7 @@ export default function PointOfSale({ api, user, onSale }) {
     <p className="mb-5 text-xs text-[#6A7C94]">Use a keyboard barcode scanner or enter a barcode and press Enter. Exact barcode matches are added directly.</p>
     {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="mb-4 rounded-xl bg-[#E6F6F6] p-4 text-sm">{notice}</p>}
+    {lastReceipt && !receiptOpen && <button type="button" onClick={() => setReceiptOpen(true)} className="mb-4 rounded-lg border border-teal-700 px-4 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50">View last receipt #{lastReceipt.id}</button>}
     {uncertain && <div role="alert" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
       <p>The sale may have reached the server. Check with your administrator before trying again to avoid a duplicate sale.</p>
       <button onClick={() => { setUncertain(false); setError('') }} className="mt-3 rounded-lg border px-3 py-2">I verified that this sale was not recorded — unlock cart</button>
@@ -174,5 +186,13 @@ export default function PointOfSale({ api, user, onSale }) {
     </div>
     {!user.pharmacy && <p className="mt-4 text-sm text-amber-800">Your account must belong to a pharmacy to complete a sale.</p>}
     <p className="mt-3 text-xs text-[#6A7C94]">The server confirms prices, unexpired stock and the discount at checkout. A discount can never bring the sale below cost. Card selects the sale’s payment record; it does not charge a card.</p>
+    {lastReceipt && receiptOpen && (
+      <ReceiptModal
+        sale={lastReceipt}
+        pharmacyName={user.pharmacy_name}
+        username={user.username}
+        onClose={() => setReceiptOpen(false)}
+      />
+    )}
   </section>
 }
