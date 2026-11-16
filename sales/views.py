@@ -1,11 +1,13 @@
 from datetime import date
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from django.db import transaction
+from django.db.models import F
 from rest_framework import status, serializers
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from inventory.models import Medicine, Stock
+from prediction.models import DailySales
 from .models import Sale, SaleItem
 from .serializers import SaleCreateSerializer, SaleSerializer
 
@@ -70,6 +72,17 @@ def create_sale(request):
                 unit_price=medicine.price,
                 unit_cost=medicine.cost,
             )
+
+            # PHAR-11: add this sale to today's sales history.
+            daily, _ = DailySales.objects.get_or_create(
+                pharmacy=user.pharmacy,
+                medicine=medicine,
+                date=date.today(),
+                defaults={'quantity_sold': 0},
+            )
+            DailySales.objects.filter(pk=daily.pk).update(
+                quantity_sold=F('quantity_sold') + item['quantity'])
+
             subtotal += medicine.price * item['quantity']
             cost_total += medicine.cost * item['quantity']
 
