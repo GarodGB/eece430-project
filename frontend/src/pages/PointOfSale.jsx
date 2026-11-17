@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { addMedicine, cartTotal, discountPercent, discountedTotal, money, priceCents, salePayload } from '../api/cart'
+import { addMedicine, cartTotal, discountPercent, discountedTotal, money, prescriptionItems, priceCents, salePayload } from '../api/cart'
 import ReceiptModal from './ReceiptModal'
 
 export default function PointOfSale({ api, user, onSale }) {
@@ -8,6 +8,7 @@ export default function PointOfSale({ api, user, onSale }) {
   const [cart, setCart] = useState([])
   const [payment, setPayment] = useState('cash')
   const [discount, setDiscount] = useState('')
+  const [rxConfirmed, setRxConfirmed] = useState(false)
   const [lastReceipt, setLastReceipt] = useState(null)
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [searching, setSearching] = useState(false)
@@ -101,13 +102,13 @@ export default function PointOfSale({ api, user, onSale }) {
   async function checkout() {
     if (saleInFlight.current || uncertain || searching) return
     let payload
-    try { payload = salePayload(cart, payment, discount) }
+    try { payload = salePayload(cart, payment, discount, rxConfirmed) }
     catch (failure) { setError(failure.message); return }
     saleInFlight.current = true
     setSelling(true); setError(''); setNotice('')
     try {
       const sale = await api.sale(payload)
-      setCart([]); setResults(null); setDiscount(''); setQuery('')
+      setCart([]); setResults(null); setDiscount(''); setRxConfirmed(false); setQuery('')
       // Store the server-confirmed sale, not the cart's estimated totals.
       setLastReceipt(sale)
       setReceiptOpen(true)
@@ -129,6 +130,8 @@ export default function PointOfSale({ api, user, onSale }) {
   const validQuantities = cart.every(item => Number.isSafeInteger(Number(item.quantity)) && Number(item.quantity) > 0)
   const percent = (() => { try { return discountPercent(discount) } catch { return null } })()
   const subtotalCents = validQuantities ? cartTotal(cart) : null
+  const rxItems = prescriptionItems(cart)
+  const rxMissing = rxItems.length > 0 && !rxConfirmed
   return <section className="rounded-3xl bg-white p-5 lg:p-7">
     <h1 className="mb-8 text-3xl font-medium text-[#171717]"><span aria-hidden="true" className="mr-4 text-slate-400">▱</span>Point of Sale</h1>
     <form onSubmit={search} className="mb-3 flex flex-wrap gap-2">
@@ -181,8 +184,12 @@ export default function PointOfSale({ api, user, onSale }) {
         {percent === null && <span role="alert" className="text-sm text-red-700">Discount must be 0–100%.</span>}
         {subtotalCents !== null && percent > 0 && <span className="text-sm">Subtotal ${money(subtotalCents)}</span>}
         <strong>Total {subtotalCents !== null && percent !== null ? `$${money(discountedTotal(subtotalCents, percent))}` : '—'}</strong>
-        <button onClick={checkout} disabled={locked || searching || !cart.length || !user.pharmacy || !validQuantities || percent === null} className="rounded-xl bg-[#0B827B] px-4 py-2 text-white disabled:opacity-50">{selling ? 'Completing sale…' : 'Checkout'}</button>
+        <button onClick={checkout} disabled={locked || searching || !cart.length || !user.pharmacy || !validQuantities || percent === null || rxMissing} className="rounded-xl bg-[#0B827B] px-4 py-2 text-white disabled:opacity-50">{selling ? 'Completing sale…' : 'Checkout'}</button>
       </div>
+      {rxItems.length > 0 && <label className="flex items-start gap-3 border-t border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">
+        <input type="checkbox" aria-label="Prescription checked" disabled={locked} checked={rxConfirmed} onChange={event => setRxConfirmed(event.target.checked)} className="mt-1 h-4 w-4" />
+        <span>I checked the customer's prescription for: <strong>{rxItems.map(item => item.name).join(', ')}</strong></span>
+      </label>}
     </div>
     {!user.pharmacy && <p className="mt-4 text-sm text-amber-800">Your account must belong to a pharmacy to complete a sale.</p>}
     <p className="mt-3 text-xs text-[#6A7C94]">The server confirms prices, unexpired stock and the discount at checkout. A discount can never bring the sale below cost. Card selects the sale’s payment record; it does not charge a card.</p>

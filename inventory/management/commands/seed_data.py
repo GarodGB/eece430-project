@@ -23,36 +23,54 @@ class Command(BaseCommand):
         # 1. CREATE 15 DEMO PHARMACIES
         # ---------------------------------------
 
+        # PHAR-10: approximate map positions (latitude, longitude)
+        # and fictional demo phone numbers, so the Finder can show
+        # distances and a number to call.
         pharmacy_data = [
-            ("Demo Pharmacy Beirut", "Hamra, Beirut"),
-            ("Demo Pharmacy Achrafieh", "Achrafieh, Beirut"),
-            ("Demo Pharmacy Verdun", "Verdun, Beirut"),
-            ("Demo Pharmacy Badaro", "Badaro, Beirut"),
-            ("Demo Pharmacy Baabda", "Baabda"),
-            ("Demo Pharmacy Hazmieh", "Hazmieh"),
-            ("Demo Pharmacy Jounieh", "Jounieh"),
-            ("Demo Pharmacy Jbeil", "Jbeil"),
-            ("Demo Pharmacy Tripoli", "Tripoli"),
-            ("Demo Pharmacy Saida", "Saida"),
-            ("Demo Pharmacy Zahle", "Zahle"),
-            ("Demo Pharmacy Nabatieh", "Nabatieh"),
-            ("Demo Pharmacy Broummana", "Broummana"),
-            ("Demo Pharmacy Dekwaneh", "Dekwaneh"),
-            ("Demo Pharmacy Aley", "Aley"),
+            ("Demo Pharmacy Beirut", "Hamra, Beirut", 33.8963, 35.4823, "01 100 001"),
+            ("Demo Pharmacy Achrafieh", "Achrafieh, Beirut", 33.8886, 35.5196, "01 100 002"),
+            ("Demo Pharmacy Verdun", "Verdun, Beirut", 33.8851, 35.4826, "01 100 003"),
+            ("Demo Pharmacy Badaro", "Badaro, Beirut", 33.8710, 35.5130, "01 100 004"),
+            ("Demo Pharmacy Baabda", "Baabda", 33.8339, 35.5442, "05 100 005"),
+            ("Demo Pharmacy Hazmieh", "Hazmieh", 33.8550, 35.5380, "05 100 006"),
+            ("Demo Pharmacy Jounieh", "Jounieh", 33.9808, 35.6178, "09 100 007"),
+            ("Demo Pharmacy Jbeil", "Jbeil", 34.1230, 35.6519, "09 100 008"),
+            ("Demo Pharmacy Tripoli", "Tripoli", 34.4367, 35.8497, "06 100 009"),
+            ("Demo Pharmacy Saida", "Saida", 33.5571, 35.3729, "07 100 010"),
+            ("Demo Pharmacy Zahle", "Zahle", 33.8463, 35.9020, "08 100 011"),
+            ("Demo Pharmacy Nabatieh", "Nabatieh", 33.3772, 35.4836, "07 100 012"),
+            ("Demo Pharmacy Broummana", "Broummana", 33.8828, 35.6206, "04 100 013"),
+            ("Demo Pharmacy Dekwaneh", "Dekwaneh", 33.8740, 35.5470, "01 100 014"),
+            ("Demo Pharmacy Aley", "Aley", 33.8103, 35.6000, "05 100 015"),
         ]
 
         pharmacies = []
 
-        for name, address in pharmacy_data:
+        for name, address, latitude, longitude, phone in pharmacy_data:
             pharmacy, created = Pharmacy.objects.get_or_create(
                 name=name,
                 defaults={
                     "address": address,
-                    "phone": "00000000",
+                    "phone": phone,
+                    "latitude": latitude,
+                    "longitude": longitude,
                     # CHANGED: Verdun does not share (privacy demo)
                     "shares_stock": name != "Demo Pharmacy Verdun",
                 },
             )
+
+            # Existing demo pharmacies: fill in what is missing,
+            # but never overwrite values someone changed.
+            changes = []
+            if pharmacy.latitude is None or pharmacy.longitude is None:
+                pharmacy.latitude, pharmacy.longitude = latitude, longitude
+                changes += ["latitude", "longitude"]
+            if pharmacy.phone == "00000000":
+                pharmacy.phone = phone
+                changes.append("phone")
+            if changes:
+                pharmacy.save(update_fields=changes)
+
             pharmacies.append(pharmacy)
 
         self.stdout.write("15 demo pharmacies prepared.")
