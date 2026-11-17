@@ -40,6 +40,12 @@ def create_sale(request):
                 raise serializers.ValidationError(
                     f"No medicine with barcode {item['barcode']}.")
 
+            # A prescription medicine can't be sold until the pharmacist confirms the prescription.
+            if medicine.needs_prescription and not data['prescription_confirmed']:
+                raise serializers.ValidationError(
+                    f"{medicine.name} needs a prescription. "
+                    f"Check the customer's prescription and confirm it before checkout.")
+
             # Fix 3: select_for_update() locks these rows until the sale finishes,
             # so two sales at the same moment can't both take the last boxes.
             stocks = list(

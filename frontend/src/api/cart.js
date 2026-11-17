@@ -25,13 +25,23 @@ export function discountPercent(value) {
   return Number(text)
 }
 
-export function salePayload(cart, paymentMethod, discount = 0) {
+// Medicines in the cart that need a prescription.
+export function prescriptionItems(cart) {
+  return cart.filter(item => item.needs_prescription)
+}
+
+export function salePayload(cart, paymentMethod, discount = 0, prescriptionConfirmed = false) {
   if (!cart.length) throw new Error('Add at least one medicine to the cart.')
   if (!['cash', 'card'].includes(paymentMethod)) throw new Error('Choose cash or card.')
   const percent = discountPercent(discount)
+  const needsPrescription = prescriptionItems(cart)
+  if (needsPrescription.length && !prescriptionConfirmed) {
+    throw new Error(`Confirm the customer's prescription for: ${needsPrescription.map(item => item.name).join(', ')}.`)
+  }
   return {
     payment_method: paymentMethod,
     ...(percent > 0 && { discount_percent: percent.toFixed(2) }),
+    ...(needsPrescription.length > 0 && { prescription_confirmed: true }),
     items: cart.map(item => {
       const quantity = Number(item.quantity)
       if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 2147483647) {

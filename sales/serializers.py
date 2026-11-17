@@ -19,6 +19,9 @@ class SaleCreateSerializer(serializers.Serializer):
         min_value=Decimal('0'), max_value=Decimal('100'),
         default=Decimal('0'),
     )
+    # The pharmacist ticks this after checking the customer's prescription.
+    # Needed only when the cart has a medicine that needs a prescription.
+    prescription_confirmed = serializers.BooleanField(default=False)
     items = SaleItemInputSerializer(many=True)
 
     def validate_items(self, value):
