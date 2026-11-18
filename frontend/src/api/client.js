@@ -105,6 +105,7 @@ export function createApi(accessToken, onExpired, refreshToken) {
     stock: (signal) => list('/api/stock/', { signal }),
     medicines: (search, signal) => list(`/api/medicines/?search=${encodeURIComponent(search)}`, { signal }),
     finder: (query, signal) => list(`/api/finder/?q=${encodeURIComponent(query)}`, { signal }),
+    weeklyReport: (weeks, signal) => request(`/api/reports/weekly/?weeks=${encodeURIComponent(weeks)}`, { signal }),
     sale: async (payload) => {
       // Renew before checkout so the POST is sent once with a fresh token.
       if (refreshToken) {
