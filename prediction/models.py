@@ -53,6 +53,14 @@ class PurchaseOrder(models.Model):
     quantity = models.PositiveIntegerField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
+    # Delivery intake is recorded once when a sent purchase order is received.
+    received_quantity = models.PositiveIntegerField(null=True, blank=True)
+    received_expiry_date = models.DateField(null=True, blank=True)
+    received_at = models.DateTimeField(null=True, blank=True)
+    received_stock = models.OneToOneField(
+        'inventory.Stock', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='purchase_order_receipt',
+    )
 
     def __str__(self):
         return f"Order: {self.quantity} x {self.medicine} from {self.supplier}"

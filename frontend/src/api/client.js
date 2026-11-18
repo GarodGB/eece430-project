@@ -103,6 +103,11 @@ export function createApi(accessToken, onExpired, refreshToken) {
   }
   return {
     stock: (signal) => list('/api/stock/', { signal }),
+    lowStockAlerts: (signal) => list('/api/alerts/low-stock/', { signal }),
+    reorderSuppliers: (signal) => list('/api/reorder/suppliers/', { signal }),
+    purchaseOrders: (signal) => list('/api/reorder/orders/', { signal }),
+    createPurchaseOrder: (payload) => request('/api/reorder/orders/', { method: 'POST', body: JSON.stringify(payload) }),
+    updatePurchaseOrderStatus: (orderId, status, details = {}) => request(`/api/reorder/orders/${encodeURIComponent(orderId)}/`, { method: 'PATCH', body: JSON.stringify({ status, ...details }) }),
     medicines: (search, signal) => list(`/api/medicines/?search=${encodeURIComponent(search)}`, { signal }),
     finder: (query, signal) => list(`/api/finder/?q=${encodeURIComponent(query)}`, { signal }),
     weeklyReport: (weeks, signal) => request(`/api/reports/weekly/?weeks=${encodeURIComponent(weeks)}`, { signal }),
