@@ -4,7 +4,7 @@ from django.db.models import IntegerField, OuterRef, Subquery, Sum
 from django.db.models.functions import Coalesce
 from rest_framework import filters, generics
 
-from .models import Medicine, Stock
+from .models import Medicine, MedicineReservation, Stock
 from .serializers import MedicineSerializer, StockSerializer
 
 
@@ -35,8 +35,21 @@ class MyStockView(generics.ListAPIView):
             .values('total')
         )
 
+        held_total = (
+            MedicineReservation.objects
+            .filter(
+                pharmacy=OuterRef('pharmacy'),
+                medicine=OuterRef('medicine'),
+                status=MedicineReservation.ACTIVE,
+            )
+            .values('pharmacy', 'medicine')
+            .annotate(total=Sum('quantity'))
+            .values('total')
+        )
+
         stocks = Stock.objects.select_related('medicine').annotate(
-            total_quantity=Coalesce(Subquery(total_valid, output_field=IntegerField()), 0)
+            total_quantity=Coalesce(Subquery(total_valid, output_field=IntegerField()), 0),
+            reserved_quantity=Coalesce(Subquery(held_total, output_field=IntegerField()), 0),
         ).order_by('expiry_date')
 
         if user.is_superuser:

@@ -5,12 +5,14 @@ import StockPrediction from './StockPrediction'
 import LowStockAlerts from './LowStockAlerts'
 import AIAssistant from './AIAssistant'
 import Inventory from './Inventory'
+import Reservations from './Reservations'
 import PointOfSale from './PointOfSale'
 import Reports from './Reports'
 
 const navigation = [
   ['⌂', 'Dashboard'],
   ['▣', 'Inventory'],
+  ['◈', 'Reservations'],
   ['▤', 'Prescriptions'],
   ['▥', 'Stock Prediction'],
   ['⌕', 'Medicine Finder'],
@@ -86,6 +88,7 @@ export default function Dashboard({ user, api, onLogout }) {
                 if (
                     label === 'Dashboard' ||
                     label === 'Inventory' ||
+                    label === 'Reservations' ||
                     label === 'Medicine Finder' ||
                     label === 'Stock Prediction' ||
                     label === 'Reports'
@@ -175,6 +178,7 @@ export default function Dashboard({ user, api, onLogout }) {
             {stockError && <p role="alert" className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Stock refresh failed: {stockError} <button onClick={refreshStock} className="ml-2 underline">Retry stock refresh</button></p>}
           </div>
           {activePage === 'Inventory' && <Inventory stock={stock} loading={stockLoading} error={stockError} onRefresh={refreshStock} />}
+          {activePage === 'Reservations' && <Reservations api={api} user={user} onChanged={refreshStock} />}
           {activePage === 'Medicine Finder' && <MedicineFinder api={api} />}
           {activePage === 'Reports' && <Reports api={api} user={user} />}
           {activePage === 'Stock Prediction' && <>

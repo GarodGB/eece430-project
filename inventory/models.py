@@ -1,4 +1,6 @@
 from datetime import date
+
+from django.conf import settings
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -52,3 +54,34 @@ class Stock(models.Model):
 
     def __str__(self):
         return f"{self.medicine} at {self.pharmacy}: {self.quantity}"
+
+class MedicineReservation(models.Model):
+    """Customer hold on medicine quantity at one pharmacy; no stock deducted."""
+    ACTIVE = 'active'
+    RELEASED = 'released'
+    STATUS_CHOICES = [(ACTIVE, 'Reserved'), (RELEASED, 'Released')]
+
+    pharmacy = models.ForeignKey(Pharmacy, on_delete=models.CASCADE)
+    medicine = models.ForeignKey(Medicine, on_delete=models.PROTECT)
+    quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    customer_name = models.CharField(max_length=120)
+    customer_phone = models.CharField(max_length=25, blank=True)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=ACTIVE)
+    reserved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_medicine_reservations',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    released_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='released_medicine_reservations',
+    )
+    released_at = models.DateTimeField(null=True, blank=True)
+    request_key = models.UUIDField(null=True, blank=True, unique=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['pharmacy', 'medicine', 'status'], name='res_lookup_idx')]
+
+    def __str__(self):
+        return f"{self.medicine.name} x {self.quantity} for {self.customer_name}"

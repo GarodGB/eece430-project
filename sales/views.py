@@ -1,12 +1,13 @@
 from datetime import date
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Sum
 from rest_framework import status, serializers
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from inventory.models import Medicine, Stock
+from inventory.models import Medicine, MedicineReservation, Stock
+from accounts.models import Pharmacy
 from prediction.models import DailySales
 from .models import Sale, SaleItem
 from .serializers import SaleCreateSerializer, SaleSerializer
@@ -25,6 +26,7 @@ def create_sale(request):
     data = input_data.validated_data
 
     with transaction.atomic():
+        Pharmacy.objects.select_for_update().get(pk=user.pharmacy_id)
         sale = Sale.objects.create(
             pharmacy=user.pharmacy,
             sold_by=user,
@@ -57,10 +59,16 @@ def create_sale(request):
                 ).order_by('expiry_date')
             )
 
-            available = sum(s.quantity for s in stocks)
-            if available < item['quantity']:
+            physical = sum(s.quantity for s in stocks)
+            reserved = (MedicineReservation.objects.filter(
+                pharmacy=user.pharmacy, medicine=medicine,
+                status=MedicineReservation.ACTIVE,
+            ).aggregate(total=Sum('quantity'))['total'] or 0)
+            sellable = max(0, physical - reserved)
+            if sellable < item['quantity']:
                 raise serializers.ValidationError(
-                    f"Not enough {medicine.name} ({available} left).")
+                    f"Not enough unreserved {medicine.name}: "
+                    f"{sellable} sellable, {reserved} reserved for customers.")
 
             remaining = item['quantity']
             for s in stocks:

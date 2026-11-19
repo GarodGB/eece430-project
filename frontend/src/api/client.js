@@ -103,6 +103,9 @@ export function createApi(accessToken, onExpired, refreshToken) {
   }
   return {
     stock: (signal) => list('/api/stock/', { signal }),
+    reservations: (signal) => list('/api/reservations/', { signal }),
+    createReservation: (payload) => request('/api/reservations/', { method: 'POST', body: JSON.stringify(payload) }),
+    releaseReservation: (id) => request(`/api/reservations/${encodeURIComponent(id)}/release/`, { method: 'POST' }),
     lowStockAlerts: (signal) => list('/api/alerts/low-stock/', { signal }),
     reorderSuppliers: (signal) => list('/api/reorder/suppliers/', { signal }),
     purchaseOrders: (signal) => list('/api/reorder/orders/', { signal }),

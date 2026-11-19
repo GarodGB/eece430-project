@@ -107,7 +107,7 @@ export default function LowStockAlerts({ api, user, onOpenInventory }) {
         <div>
           <h2 className="text-2xl font-bold">Live low-stock alerts</h2>
           <p className="mt-1 text-sm text-[#6A7C94]">
-            Actual unexpired inventory for {user.pharmacy_name || 'your pharmacy'}, compared with each medicine's reorder threshold.
+            Unreserved, unexpired inventory for {user.pharmacy_name || 'your pharmacy'}, compared with each medicine's reorder threshold.
           </p>
           <p className="mt-1 text-xs text-[#6A7C94]">Threshold alerts are not ML predictions of stockout dates.</p>
         </div>

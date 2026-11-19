@@ -6,6 +6,7 @@ from prediction.views import low_stock_alerts, reorder_suppliers, purchase_order
 from accounts.views import me, pharmacy_sharing
 from finder.views import nearby_availability
 from inventory.views import MedicineSearchView, MyStockView
+from inventory.reservation_api import reservations, release_reservation
 from reports.views import weekly_report
 from sales.views import create_sale
 
@@ -22,6 +23,8 @@ urlpatterns = [
     path('api/pharmacy/sharing/', pharmacy_sharing),
     path('api/medicines/', MedicineSearchView.as_view()),
     path('api/stock/', MyStockView.as_view()),
+    path('api/reservations/', reservations),
+    path('api/reservations/<int:reservation_id>/release/', release_reservation),
     path('api/sales/', create_sale),
     path('api/finder/', nearby_availability),
     path('api/reports/weekly/', weekly_report),

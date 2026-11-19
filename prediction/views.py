@@ -13,7 +13,7 @@ from rest_framework.response import Response
 
 from accounts.permissions import IsPharmacyStaff, IsPharmacyOwner
 from accounts.models import Pharmacy
-from inventory.models import Stock
+from inventory.models import Stock, MedicineReservation
 from prediction.models import PurchaseOrder, Supplier
 
 
@@ -36,20 +36,27 @@ def low_stock_alerts(request):
             ),
             reorder_level=Max('reorder_level'),
         )
-        .filter(available_quantity__lt=F('reorder_level'))
         .order_by('medicine__name', 'medicine_id')
     )
-
-    return Response([
-        {
-            'medicine_id': row['medicine_id'],
-            'medicine_name': row['medicine__name'],
-            'available_quantity': row['available_quantity'],
-            'reorder_level': row['reorder_level'],
-            'shortfall': row['reorder_level'] - row['available_quantity'],
-        }
-        for row in rows
-    ])
+    held = {
+        row['medicine_id']: row['total']
+        for row in (MedicineReservation.objects
+                    .filter(pharmacy=request.user.pharmacy,
+                            status=MedicineReservation.ACTIVE)
+                    .values('medicine_id').annotate(total=Sum('quantity')))
+    }
+    alerts = []
+    for row in rows:
+        sellable = max(0, row['available_quantity'] - held.get(row['medicine_id'], 0))
+        if sellable < row['reorder_level']:
+            alerts.append({
+                'medicine_id': row['medicine_id'],
+                'medicine_name': row['medicine__name'],
+                'available_quantity': sellable,
+                'reorder_level': row['reorder_level'],
+                'shortfall': row['reorder_level'] - sellable,
+            })
+    return Response(alerts)
 
 
 class PurchaseOrderRequestSerializer(serializers.Serializer):
@@ -132,7 +139,11 @@ def purchase_orders(request):
             available=Coalesce(Sum('quantity', filter=Q(expiry_date__gte=date.today())), 0),
             threshold=Max('reorder_level'),
         )
-        if totals['available'] >= totals['threshold']:
+        held = (MedicineReservation.objects.filter(
+            pharmacy=pharmacy, medicine_id=med_id,
+            status=MedicineReservation.ACTIVE,
+        ).aggregate(total=Sum('quantity'))['total'] or 0)
+        if max(0, totals['available'] - held) >= totals['threshold']:
             return Response({'error': 'This medicine is not currently below its reorder level.'},
                             status=status.HTTP_400_BAD_REQUEST)
 

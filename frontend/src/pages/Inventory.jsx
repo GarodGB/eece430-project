@@ -25,10 +25,13 @@ export default function Inventory({ stock, loading, error, onRefresh }) {
       {!loading && !error && stock.length === 0 && <p role="status">No stock records found.</p>}
       {!error && stock.length > 0 && <div className="overflow-x-auto rounded-2xl border border-[#CCCCCC]">
         <table className="w-full min-w-[600px] text-left text-sm">
-          <thead className="bg-[#E7E7E7] text-xs text-[#5D7482]"><tr>{['Medicine', 'Batch ID', 'Quantity', 'Reorder level', 'Expiry date', 'Alerts'].map(title => <th key={title} className="px-5 py-4">{title}</th>)}</tr></thead>
+          <thead className="bg-[#E7E7E7] text-xs text-[#5D7482]"><tr>{['Medicine', 'Batch ID', 'Batch quantity', 'Reserved (medicine)', 'Sellable (medicine)', 'Reorder level', 'Expiry date', 'Alerts'].map(title => <th key={title} className="px-5 py-4">{title}</th>)}</tr></thead>
           <tbody>{sortedStock.map(item => <tr key={item.id} className="border-t border-[#CCCCCC]">
             <td className="px-5 py-4 font-semibold">{item.medicine_name}</td><td className="px-5 py-4">{item.id}</td>
-            <td className="px-5 py-4">{item.quantity}</td><td className="px-5 py-4">{item.reorder_level}</td>
+            <td className="px-5 py-4">{item.quantity}</td>
+            <td className="px-5 py-4 text-amber-800">{item.reserved_quantity ?? 0}</td>
+            <td className="px-5 py-4 font-semibold text-teal-800">{item.available_to_sell ?? item.total_quantity}</td>
+            <td className="px-5 py-4">{item.reorder_level}</td>
             <td className="px-5 py-4">{item.expiry_date || 'Not supplied'}</td>
             <td className="px-5 py-4 text-amber-800">{[item.is_expired && 'Expired', item.is_low && 'Low stock', item.expiring_soon && 'Expires within 30 days'].filter(Boolean).join(' · ') || '—'}</td>
           </tr>)}</tbody>

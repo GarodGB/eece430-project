@@ -1,12 +1,12 @@
 from datetime import date
 from math import asin, cos, radians, sin, sqrt
 
-from django.db.models import Q
+from django.db.models import Q, Sum
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from inventory.models import Medicine, Stock
+from inventory.models import Medicine, MedicineReservation, Stock
 from .serializers import PharmacyPublicSerializer
 
 
@@ -42,9 +42,28 @@ def nearby_availability(request):
     my_lat = me.latitude if me else None
     my_lon = me.longitude if me else None
 
+    # Do not advertise stock held for a customer as available.
+    stock_rows = list(stocks)
+    physical = {}
+    for batch in stock_rows:
+        key = (batch.pharmacy_id, batch.medicine_id)
+        physical[key] = physical.get(key, 0) + batch.quantity
+    holds = {
+        (row['pharmacy_id'], row['medicine_id']): row['total']
+        for row in (MedicineReservation.objects
+                    .filter(
+                        status=MedicineReservation.ACTIVE,
+                        pharmacy_id__in={b.pharmacy_id for b in stock_rows},
+                        medicine_id__in={b.medicine_id for b in stock_rows},
+                    )
+                    .values('pharmacy_id', 'medicine_id')
+                    .annotate(total=Sum('quantity')))
+    }
     results = {}
-    for s in stocks:
+    for s in stock_rows:
         key = (s.pharmacy_id, s.medicine_id)
+        if physical[key] <= holds.get(key, 0):
+            continue
         results[key] = {
             'pharmacy': PharmacyPublicSerializer(s.pharmacy).data,
             'medicine': s.medicine.name,
