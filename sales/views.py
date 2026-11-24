@@ -1,7 +1,7 @@
-from datetime import date
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from django.db import transaction
 from django.db.models import F, Sum
+from django.utils import timezone
 from rest_framework import status, serializers
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -27,6 +27,7 @@ def create_sale(request):
 
     with transaction.atomic():
         Pharmacy.objects.select_for_update().get(pk=user.pharmacy_id)
+        today = timezone.localdate()
         sale = Sale.objects.create(
             pharmacy=user.pharmacy,
             sold_by=user,
@@ -55,7 +56,7 @@ def create_sale(request):
                     pharmacy=user.pharmacy,
                     medicine=medicine,
                     quantity__gt=0,
-                    expiry_date__gte=date.today(),
+                    expiry_date__gte=today,
                 ).order_by('expiry_date')
             )
 
@@ -91,7 +92,7 @@ def create_sale(request):
             daily, _ = DailySales.objects.get_or_create(
                 pharmacy=user.pharmacy,
                 medicine=medicine,
-                date=date.today(),
+                date=today,
                 defaults={'quantity_sold': 0},
             )
             DailySales.objects.filter(pk=daily.pk).update(

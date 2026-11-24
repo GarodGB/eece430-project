@@ -183,11 +183,7 @@ export default function Dashboard({ user, api, onLogout }) {
           {activePage === 'Reports' && <Reports api={api} user={user} />}
           {activePage === 'Stock Prediction' && <>
             <LowStockAlerts api={api} user={user} onOpenInventory={() => { setActivePage('Inventory'); setMessage('') }} />
-            <details className="rounded-2xl border border-slate-200 bg-white p-5">
-              <summary className="cursor-pointer font-semibold text-[#142440]">Preview: PHAR-12 stockout forecasting (sample data only)</summary>
-              <p className="mt-3 text-sm text-amber-800">The forecast below uses three hardcoded example medicines, not PostgreSQL or a trained ML model.</p>
-              <div className="mt-5"><StockPrediction onOpenInventory={() => { setActivePage('Inventory'); setMessage('') }} /></div>
-            </details>
+            <StockPrediction api={api} onOpenInventory={() => { setActivePage('Inventory'); setMessage('') }} />
           </>}
           {activePage === 'AI Assistant' && <><p className="text-sm text-slate-600">Preview with sample data — planned for a later sprint.</p><AIAssistant onOpenFinder={() => setActivePage('Medicine Finder')} /></>}
           {message && <div role="status" className="flex items-center justify-between gap-4 rounded-xl bg-white p-4 text-sm"><p>{message}</p><button aria-label="Dismiss message" onClick={() => setMessage('')} className="px-2 text-xl">×</button></div>}

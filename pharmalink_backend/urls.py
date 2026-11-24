@@ -1,7 +1,10 @@
 from django.contrib import admin
 from django.urls import include, path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from prediction.views import low_stock_alerts, reorder_suppliers, purchase_orders, update_purchase_order_status
+from prediction.views import (
+    low_stock_alerts, purchase_orders, reorder_suppliers, stock_forecasts,
+    update_purchase_order_status,
+)
 
 from accounts.views import me, pharmacy_sharing
 from finder.views import nearby_availability
@@ -11,6 +14,7 @@ from reports.views import weekly_report
 from sales.views import create_sale
 
 urlpatterns = [
+    path('api/prediction/forecasts/', stock_forecasts),
     path('api/alerts/low-stock/', low_stock_alerts),
     path('api/reorder/suppliers/', reorder_suppliers),
     path('api/reorder/orders/', purchase_orders),

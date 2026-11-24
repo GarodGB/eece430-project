@@ -1,6 +1,6 @@
-"""PHAR-13: live low-stock alerts scoped to the signed-in pharmacy."""
+"""Stock forecasts, low-stock alerts, and reordering for the signed-in pharmacy."""
 
-from datetime import date
+from datetime import date, timedelta
 
 from django.utils import timezone
 
@@ -14,7 +14,76 @@ from rest_framework.response import Response
 from accounts.permissions import IsPharmacyStaff, IsPharmacyOwner
 from accounts.models import Pharmacy
 from inventory.models import Stock, MedicineReservation
-from prediction.models import PurchaseOrder, Supplier
+from prediction.models import DailySales, PurchaseOrder, Supplier
+
+
+FORECAST_LOOKBACK_DAYS = 30
+
+
+@api_view(['GET'])
+@permission_classes([IsPharmacyStaff])
+def stock_forecasts(request):
+    today = timezone.localdate()
+    start = today - timedelta(days=FORECAST_LOOKBACK_DAYS)
+    pharmacy_id = request.user.pharmacy_id
+
+    inventory = (
+        Stock.objects.filter(pharmacy_id=pharmacy_id)
+        .values('medicine_id', 'medicine__name', 'medicine__generic_name', 'medicine__barcode')
+        .annotate(unexpired=Coalesce(Sum('quantity', filter=Q(expiry_date__gte=today)), 0))
+        .order_by('medicine__name', 'medicine_id')
+    )
+    held = {
+        row['medicine_id']: row['total']
+        for row in MedicineReservation.objects.filter(
+            pharmacy_id=pharmacy_id, status=MedicineReservation.ACTIVE,
+        ).order_by().values('medicine_id').annotate(total=Sum('quantity'))
+    }
+    sold = {
+        row['medicine_id']: row['total']
+        for row in DailySales.objects.filter(
+            pharmacy_id=pharmacy_id, date__gte=start, date__lt=today,
+        ).values('medicine_id').annotate(total=Sum('quantity_sold'))
+    }
+
+    forecasts = []
+    for row in inventory:
+        medicine_id = row['medicine_id']
+        available = max(0, row['unexpired'] - held.get(medicine_id, 0))
+        total_sold = sold.get(medicine_id, 0)
+        days = None
+        run_out_date = None
+        if available == 0:
+            forecast_status = 'out_of_stock'
+            days = 0
+            run_out_date = today
+        elif total_sold == 0:
+            forecast_status = 'no_recent_sales'
+        else:
+            forecast_status = 'estimated'
+            # Round up using the exact rate before formatting it for display.
+            days = (available * FORECAST_LOOKBACK_DAYS + total_sold - 1) // total_sold
+            if days <= (date.max - today).days:
+                run_out_date = today + timedelta(days=days)
+
+        forecasts.append({
+            'medicine_id': medicine_id,
+            'medicine_name': row['medicine__name'],
+            'generic_name': row['medicine__generic_name'],
+            'barcode': row['medicine__barcode'],
+            'available_quantity': available,
+            'total_units_sold': total_sold,
+            'average_daily_sales': total_sold / FORECAST_LOOKBACK_DAYS,
+            'days_remaining': days,
+            'predicted_run_out_date': run_out_date.isoformat() if run_out_date else None,
+            'status': forecast_status,
+        })
+
+    return Response({
+        'as_of_date': today.isoformat(),
+        'lookback_days': FORECAST_LOOKBACK_DAYS,
+        'forecasts': forecasts,
+    })
 
 
 @api_view(['GET'])
