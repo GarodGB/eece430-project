@@ -1,3 +1,5 @@
+import { damanDetails } from './daman.js'
+
 export function priceCents(price) {
   const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(String(price))
   if (!match) throw new Error('Medicine price is unavailable or invalid.')
@@ -30,9 +32,10 @@ export function prescriptionItems(cart) {
   return cart.filter(item => item.needs_prescription)
 }
 
-export function salePayload(cart, paymentMethod, discount = 0, prescriptionConfirmed = false) {
+export function salePayload(cart, paymentMethod, discount = 0, prescriptionConfirmed = false, daman = {}) {
   if (!cart.length) throw new Error('Add at least one medicine to the cart.')
-  if (!['cash', 'card'].includes(paymentMethod)) throw new Error('Choose cash or card.')
+  if (!['cash', 'card', 'insurance'].includes(paymentMethod)) throw new Error('Choose cash, card or Daman.')
+  const insured = paymentMethod === 'insurance' ? damanDetails(daman.damanNumber) : {}
   const percent = discountPercent(discount)
   const needsPrescription = prescriptionItems(cart)
   if (needsPrescription.length && !prescriptionConfirmed) {
@@ -42,6 +45,7 @@ export function salePayload(cart, paymentMethod, discount = 0, prescriptionConfi
     payment_method: paymentMethod,
     ...(percent > 0 && { discount_percent: percent.toFixed(2) }),
     ...(needsPrescription.length > 0 && { prescription_confirmed: true }),
+    ...insured,
     items: cart.map(item => {
       const quantity = Number(item.quantity)
       if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 2147483647) {
