@@ -25,7 +25,9 @@ test('quantity edits and removals produce the correct checkout payload', () => {
 test('empty carts, invalid quantities, missing barcodes, and invalid prices are rejected', () => {
   assert.throws(() => salePayload([], 'cash'), /at least one/)
   for (const quantity of ['', 0, -1, 1.5, 'abc', 2147483648]) assert.throws(() => salePayload([{ ...medicine, quantity }], 'cash'), /whole-number/)
-  assert.throws(() => salePayload([{ ...medicine, quantity: 1 }], 'insurance'), /cash or card/)
+  assert.throws(() => salePayload([{ ...medicine, quantity: 1 }], 'bitcoin'), /cash, card or Daman/)
+  // PHAR-16: Daman is a valid payment now, but it needs the patient's Daman number.
+  assert.throws(() => salePayload([{ ...medicine, quantity: 1 }], 'insurance'), /Daman number/)
   assert.throws(() => addMedicine([], { ...medicine, barcode: '' }), /barcode/)
   assert.throws(() => addMedicine([], { ...medicine, price: null }), /price/)
 })

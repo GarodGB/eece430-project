@@ -90,7 +90,11 @@ export default function ReceiptModal({ sale, pharmacyName, username, onClose }) 
               <dt className="text-slate-500">Cashier</dt>
               <dd className="text-right">{sale.sold_by || username || '—'}</dd>
               <dt className="text-slate-500">Payment method</dt>
-              <dd className="text-right capitalize">{sale.payment_method || '—'}</dd>
+              <dd className="text-right capitalize">{sale.daman ? 'Daman' : (sale.payment_method || '—')}</dd>
+              {sale.daman && <>
+                <dt className="text-slate-500">Daman number</dt>
+                <dd className="text-right">{sale.daman.daman_number}</dd>
+              </>}
             </dl>
 
             <table className="mt-5 w-full text-left text-xs">
@@ -123,6 +127,10 @@ export default function ReceiptModal({ sale, pharmacyName, username, onClose }) 
               <div className="flex justify-between gap-3 border-t border-slate-200 pt-3 text-lg font-bold">
                 <dt>Total</dt><dd>${money(total)}</dd>
               </div>
+              {sale.daman && <>
+                <div className="flex justify-between gap-3"><dt>Paid by Daman (80%)</dt><dd>{displayMoney(sale.daman.daman_pays)}</dd></div>
+                <div className="flex justify-between gap-3 text-lg font-bold"><dt>Customer paid</dt><dd>{displayMoney(sale.daman.customer_pays)}</dd></div>
+              </>}
             </dl>
 
             <p className="mt-6 text-center text-xs text-slate-500">Thank you for visiting!</p>

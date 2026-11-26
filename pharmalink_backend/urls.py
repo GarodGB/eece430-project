@@ -8,6 +8,7 @@ from prediction.views import (
 
 from accounts.views import me, pharmacy_sharing
 from finder.views import nearby_availability
+from insurance.views import daman_overview, daman_statement_detail, daman_statements, mark_statement_paid
 from inventory.views import MedicineSearchView, MyStockView
 from inventory.reservation_api import reservations, release_reservation
 from reports.views import weekly_report
@@ -32,4 +33,8 @@ urlpatterns = [
     path('api/sales/', create_sale),
     path('api/finder/', nearby_availability),
     path('api/reports/weekly/', weekly_report),
+    path('api/insurance/daman/', daman_overview),
+    path('api/insurance/daman/statements/', daman_statements),
+    path('api/insurance/daman/statements/<int:statement_id>/', daman_statement_detail),
+    path('api/insurance/daman/statements/<int:statement_id>/mark-paid/', mark_statement_paid),
 ]

@@ -6,6 +6,7 @@ from rest_framework import status, serializers
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from insurance.models import DAMAN, InsuranceClaim, daman_share
 from inventory.models import Medicine, MedicineReservation, Stock
 from accounts.models import Pharmacy
 from prediction.models import DailySales
@@ -120,5 +121,16 @@ def create_sale(request):
         sale.discount_percent = discount
         sale.total = total
         sale.save()
+
+        # PHAR-16: Daman pays 80% later; the customer pays the rest now.
+        if sale.payment_method == 'insurance':
+            if total <= 0:
+                raise serializers.ValidationError("A sale with a $0 total can't be paid by Daman.")
+            InsuranceClaim.objects.create(
+                sale=sale,
+                insurer=DAMAN,
+                policy_number=data['daman_number'],
+                amount=daman_share(total),
+            )
 
     return Response(SaleSerializer(sale).data, status=status.HTTP_201_CREATED)

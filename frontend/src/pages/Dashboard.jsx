@@ -5,6 +5,7 @@ import StockPrediction from './StockPrediction'
 import LowStockAlerts from './LowStockAlerts'
 import AIAssistant from './AIAssistant'
 import Inventory from './Inventory'
+import InsuranceClaims from './InsuranceClaims'
 import Reservations from './Reservations'
 import PointOfSale from './PointOfSale'
 import Reports from './Reports'
@@ -91,6 +92,7 @@ export default function Dashboard({ user, api, onLogout }) {
                     label === 'Reservations' ||
                     label === 'Medicine Finder' ||
                     label === 'Stock Prediction' ||
+                    label === 'Insurance Claims' ||
                     label === 'Reports'
                 ) {
                     setActivePage(label)
@@ -181,6 +183,7 @@ export default function Dashboard({ user, api, onLogout }) {
           {activePage === 'Reservations' && <Reservations api={api} user={user} onChanged={refreshStock} />}
           {activePage === 'Medicine Finder' && <MedicineFinder api={api} />}
           {activePage === 'Reports' && <Reports api={api} user={user} />}
+          {activePage === 'Insurance Claims' && <InsuranceClaims api={api} />}
           {activePage === 'Stock Prediction' && <>
             <LowStockAlerts api={api} user={user} onOpenInventory={() => { setActivePage('Inventory'); setMessage('') }} />
             <StockPrediction api={api} onOpenInventory={() => { setActivePage('Inventory'); setMessage('') }} />

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { addMedicine, cartTotal, discountPercent, discountedTotal, money, prescriptionItems, priceCents, salePayload } from '../api/cart'
+import { DAMAN_PERCENT, damanSplit } from '../api/daman'
 import ReceiptModal from './ReceiptModal'
 
 export default function PointOfSale({ api, user, onSale }) {
@@ -9,6 +10,7 @@ export default function PointOfSale({ api, user, onSale }) {
   const [payment, setPayment] = useState('cash')
   const [discount, setDiscount] = useState('')
   const [rxConfirmed, setRxConfirmed] = useState(false)
+  const [damanNumber, setDamanNumber] = useState('')
   const [lastReceipt, setLastReceipt] = useState(null)
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [searching, setSearching] = useState(false)
@@ -102,18 +104,19 @@ export default function PointOfSale({ api, user, onSale }) {
   async function checkout() {
     if (saleInFlight.current || uncertain || searching) return
     let payload
-    try { payload = salePayload(cart, payment, discount, rxConfirmed) }
+    try { payload = salePayload(cart, payment, discount, rxConfirmed, { damanNumber }) }
     catch (failure) { setError(failure.message); return }
     saleInFlight.current = true
     setSelling(true); setError(''); setNotice('')
     try {
       const sale = await api.sale(payload)
-      setCart([]); setResults(null); setDiscount(''); setRxConfirmed(false); setQuery('')
+      setCart([]); setResults(null); setDiscount(''); setRxConfirmed(false); setDamanNumber(''); setQuery('')
       // Store the server-confirmed sale, not the cart's estimated totals.
       setLastReceipt(sale)
       setReceiptOpen(true)
       const discountNote = Number(sale.discount_percent) > 0 ? ` (subtotal $${sale.subtotal}, ${sale.discount_percent}% discount)` : ''
-      setNotice(`Sale #${sale.id} completed. Server total: $${sale.total}${discountNote}.`)
+      const damanNote = sale.daman ? ` Daman owes $${sale.daman.daman_pays}; customer paid $${sale.daman.customer_pays}.` : ''
+      setNotice(`Sale #${sale.id} completed. Server total: $${sale.total}${discountNote}.${damanNote}`)
       // Stock refresh failure must not turn an already recorded sale into a failed checkout.
       try {
         await onSale()
@@ -132,6 +135,10 @@ export default function PointOfSale({ api, user, onSale }) {
   const subtotalCents = validQuantities ? cartTotal(cart) : null
   const rxItems = prescriptionItems(cart)
   const rxMissing = rxItems.length > 0 && !rxConfirmed
+  const insured = payment === 'insurance'
+  const damanMissing = insured && !/^\d{1,20}$/.test(damanNumber.trim())
+  const estimatedTotal = subtotalCents !== null && percent !== null ? discountedTotal(subtotalCents, percent) : null
+  const split = insured && estimatedTotal !== null ? damanSplit(estimatedTotal) : null
   return <section className="rounded-3xl bg-white p-5 lg:p-7">
     <h1 className="mb-8 text-3xl font-medium text-[#171717]"><span aria-hidden="true" className="mr-4 text-slate-400">▱</span>Point of Sale</h1>
     <form onSubmit={search} className="mb-3 flex flex-wrap gap-2">
@@ -179,13 +186,18 @@ export default function PointOfSale({ api, user, onSale }) {
         </tr>)}{cart.length === 0 && <tr><td colSpan="6" className="px-6 py-8 text-center">Your cart is empty. Search or scan a medicine to begin.</td></tr>}</tbody>
       </table>
       <div className="flex flex-wrap items-center gap-3 bg-[#D9D9D9] px-5 py-3 text-[#171717]">
-        <label className="mr-auto text-sm">Payment <select aria-label="Payment method" disabled={locked} value={payment} onChange={event => setPayment(event.target.value)} className="ml-2 rounded-lg bg-white px-3 py-2"><option value="cash">Cash</option><option value="card">Card</option></select></label>
+        <label className="mr-auto text-sm">Payment <select aria-label="Payment method" disabled={locked} value={payment} onChange={event => setPayment(event.target.value)} className="ml-2 rounded-lg bg-white px-3 py-2"><option value="cash">Cash</option><option value="card">Card</option><option value="insurance">Daman ({DAMAN_PERCENT}%)</option></select></label>
         <label className="text-sm">Discount % <input type="number" min="0" max="100" step="0.01" inputMode="decimal" aria-label="Discount percent" disabled={locked} value={discount} onChange={event => setDiscount(event.target.value)} placeholder="0" className="ml-2 w-20 rounded-lg bg-white px-2 py-2" /></label>
         {percent === null && <span role="alert" className="text-sm text-red-700">Discount must be 0–100%.</span>}
         {subtotalCents !== null && percent > 0 && <span className="text-sm">Subtotal ${money(subtotalCents)}</span>}
-        <strong>Total {subtotalCents !== null && percent !== null ? `$${money(discountedTotal(subtotalCents, percent))}` : '—'}</strong>
-        <button onClick={checkout} disabled={locked || searching || !cart.length || !user.pharmacy || !validQuantities || percent === null || rxMissing} className="rounded-xl bg-[#0B827B] px-4 py-2 text-white disabled:opacity-50">{selling ? 'Completing sale…' : 'Checkout'}</button>
+        <strong>Total {estimatedTotal !== null ? `$${money(estimatedTotal)}` : '—'}</strong>
+        <button onClick={checkout} disabled={locked || searching || !cart.length || !user.pharmacy || !validQuantities || percent === null || rxMissing || damanMissing} className="rounded-xl bg-[#0B827B] px-4 py-2 text-white disabled:opacity-50">{selling ? 'Completing sale…' : 'Checkout'}</button>
       </div>
+      {insured && <div className="flex flex-wrap items-center gap-3 border-t border-sky-200 bg-sky-50 px-5 py-3 text-sm text-sky-950">
+        <strong>Daman</strong>
+        <label>Daman number <input aria-label="Daman number" inputMode="numeric" disabled={locked} value={damanNumber} onChange={event => setDamanNumber(event.target.value.replace(/\D/g, ''))} maxLength={20} className="ml-2 w-36 rounded-lg border border-sky-200 bg-white px-2 py-2" /></label>
+        {split && <span className="ml-auto">Daman pays <strong>${money(split.daman)}</strong> · Customer pays now <strong>${money(split.customer)}</strong></span>}
+      </div>}
       {rxItems.length > 0 && <label className="flex items-start gap-3 border-t border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">
         <input type="checkbox" aria-label="Prescription checked" disabled={locked} checked={rxConfirmed} onChange={event => setRxConfirmed(event.target.checked)} className="mt-1 h-4 w-4" />
         <span>I checked the customer's prescription for: <strong>{rxItems.map(item => item.name).join(', ')}</strong></span>

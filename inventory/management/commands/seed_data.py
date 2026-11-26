@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from random import Random
 import os
@@ -6,7 +6,11 @@ import os
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from django.utils import timezone
+
 from accounts.models import Pharmacy, User  # CHANGED: added User
+from insurance.models import DAMAN, DamanStatement, InsuranceClaim, daman_share
+from sales.models import Sale, SaleItem
 from inventory.models import Medicine, Stock
 from prediction.models import DailySales, StockAlert, Supplier
 
@@ -451,6 +455,60 @@ class Command(BaseCommand):
         )
 
 
+
+        # ---------------------------------------
+        # 9. DEMO DAMAN CLAIMS (PHAR-16)
+        # ---------------------------------------
+        # Each pharmacy gets 3 unpaid Daman sales from the last days
+        # and 1 older statement that Daman already paid, so the whole
+        # flow can be shown in the demo. Never added twice.
+
+        patients = ["1234567", "2345678", "3456789", "4567890", "5678901"]  # Daman numbers
+        sellable = [m for m in medicines if not m.needs_prescription]
+        today = timezone.localdate()
+
+        def daman_sale(pharmacy, days_ago, patient, items):
+            sale = Sale.objects.create(pharmacy=pharmacy, payment_method="insurance")
+            total = Decimal("0")
+            for medicine, quantity in items:
+                SaleItem.objects.create(sale=sale, medicine=medicine, quantity=quantity,
+                                        unit_price=medicine.price, unit_cost=medicine.cost)
+                total += medicine.price * quantity
+            when = timezone.make_aware(datetime.combine(today - timedelta(days=days_ago), time(11, 0)))
+            Sale.objects.filter(pk=sale.pk).update(created_at=when, subtotal=total, total=total)
+            return InsuranceClaim.objects.create(
+                sale=sale, insurer=DAMAN,
+                policy_number=patient, amount=daman_share(total),
+            )
+
+        claims_created = 0
+        for pharmacy in pharmacies:
+            if InsuranceClaim.objects.filter(sale__pharmacy=pharmacy).exists():
+                continue
+            picks = rng.sample(sellable, 7)
+
+            # An older statement that Daman already paid.
+            old = [
+                daman_sale(pharmacy, 38, patients[3], [(picks[0], 2)]),
+                daman_sale(pharmacy, 36, patients[4], [(picks[1], 1), (picks[2], 1)]),
+            ]
+            statement = DamanStatement.objects.create(
+                pharmacy=pharmacy, number=1, status=DamanStatement.PAID,
+                total=sum(c.amount for c in old),
+            )
+            sent_on = timezone.make_aware(datetime.combine(today - timedelta(days=31), time(10, 0)))
+            paid_on = timezone.make_aware(datetime.combine(today - timedelta(days=20), time(10, 0)))
+            DamanStatement.objects.filter(pk=statement.pk).update(created_at=sent_on, paid_at=paid_on)
+            InsuranceClaim.objects.filter(pk__in=[c.pk for c in old]).update(
+                status=InsuranceClaim.PAID, statement=statement)
+
+            # This month's claims, still waiting for a statement.
+            daman_sale(pharmacy, 6, patients[0], [(picks[3], 2)])
+            daman_sale(pharmacy, 3, patients[1], [(picks[4], 1), (picks[5], 3)])
+            daman_sale(pharmacy, 1, patients[2], [(picks[6], 1)])
+            claims_created += 5
+
+        self.stdout.write(f"{claims_created} demo Daman claims prepared.")
 
         # ---------------------------------------
         # COMPLETE

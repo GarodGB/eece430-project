@@ -115,6 +115,11 @@ export function createApi(accessToken, onExpired, refreshToken) {
     medicines: (search, signal) => list(`/api/medicines/?search=${encodeURIComponent(search)}`, { signal }),
     finder: (query, signal) => list(`/api/finder/?q=${encodeURIComponent(query)}`, { signal }),
     weeklyReport: (weeks, signal) => request(`/api/reports/weekly/?weeks=${encodeURIComponent(weeks)}`, { signal }),
+    damanOverview: (signal) => request('/api/insurance/daman/', { signal }),
+    damanStatements: (signal) => request('/api/insurance/daman/statements/', { signal }),
+    damanStatement: (id, signal) => request(`/api/insurance/daman/statements/${encodeURIComponent(id)}/`, { signal }),
+    createDamanStatement: () => request('/api/insurance/daman/statements/', { method: 'POST' }),
+    markDamanStatementPaid: (id) => request(`/api/insurance/daman/statements/${encodeURIComponent(id)}/mark-paid/`, { method: 'POST' }),
     sale: async (payload) => {
       // Renew before checkout so the POST is sent once with a fresh token.
       if (refreshToken) {
