@@ -36,19 +36,7 @@ export default function Login({ onLogin, sessionMessage }) {
 
   return (
     <main className="min-h-screen bg-[#F5F7FA] px-5 pb-12 font-sans text-[#142440]">
-      <header className="mx-auto flex max-w-7xl justify-end py-6">
-        <select
-          aria-label="Language"
-          defaultValue=""
-          className="rounded-lg border border-[#E2E8F0] bg-white px-4 py-2 text-sm"
-          onChange={() => setMessage('Translations will be connected later.')}
-        >
-          <option value="" disabled>Language</option>
-          <option value="en">English</option>
-          <option value="ar">العربية</option>
-          <option value="fr">Français</option>
-        </select>
-      </header>
+      <div className="py-6" />
 
       <section
         aria-labelledby="login-heading"
@@ -140,14 +128,7 @@ export default function Login({ onLogin, sessionMessage }) {
         </form>
 
         <p className="mt-8 text-center text-sm text-[#6A7C94]">
-          New to PharmaLink?{' '}
-          <button
-            type="button"
-            onClick={() => setMessage('The sign-up page will be added later.')}
-            className="ml-1 font-semibold text-[#0B827B] hover:underline"
-          >
-            Create an account
-          </button>
+          New to PharmaLink? Ask your system administrator for an account.
         </p>
 
         <p className="mt-7 text-center text-xs text-[#6A7C94]">

@@ -14,7 +14,6 @@ const navigation = [
   ['⌂', 'Dashboard'],
   ['▣', 'Inventory'],
   ['◈', 'Reservations'],
-  ['▤', 'Prescriptions'],
   ['▥', 'Stock Prediction'],
   ['⌕', 'Medicine Finder'],
   ['◇', 'Insurance Claims'],
@@ -47,10 +46,6 @@ export default function Dashboard({ user, api, onLogout }) {
     const timer = setTimeout(() => { void refreshStock() }, 0)
     return () => { clearTimeout(timer); stockRequest.current?.abort() }
   }, [refreshStock])
-
-  function comingSoon(feature) {
-    setMessage(`${feature} will be connected in a later step.`)
-  }
 
   return (
     <div className="min-h-screen bg-[#D9D9D9] font-sans text-[#142440]">
@@ -86,21 +81,9 @@ export default function Dashboard({ user, api, onLogout }) {
               aria-label={label}
               aria-current={label === activePage ? 'page' : undefined}
               onClick={() => {
-                if (
-                    label === 'Dashboard' ||
-                    label === 'Inventory' ||
-                    label === 'Reservations' ||
-                    label === 'Medicine Finder' ||
-                    label === 'Stock Prediction' ||
-                    label === 'Insurance Claims' ||
-                    label === 'Reports'
-                ) {
-                    setActivePage(label)
-                    setMessage('')
-                } else {
-                    comingSoon(label)
-                }
-                }}
+                setActivePage(label)
+                setMessage('')
+              }}
               className={`flex h-11 w-full items-center gap-4 rounded-lg px-3 text-left text-sm transition ${
                 label === activePage
                   ? 'border-l-4 border-[#00BDCE] bg-[#1D4555] font-semibold text-white'
@@ -114,16 +97,6 @@ export default function Dashboard({ user, api, onLogout }) {
         </nav>
 
         <div className="mt-auto space-y-5 p-3 pb-5">
-          <button
-            type="button"
-            aria-label="Settings"
-            onClick={() => comingSoon('Settings')}
-            className="flex items-center gap-4 px-3 text-sm text-[#BAC8DB]"
-          >
-            <span aria-hidden="true" className="text-xl">⚙</span>
-            <span className="hidden lg:inline">Settings</span>
-          </button>
-
           <button onClick={onLogout} aria-label="Log out" title="Log out" className="w-full rounded-lg px-3 py-2 text-left text-sm text-[#BAC8DB] hover:bg-white/10">↪ <span className="hidden lg:inline">Log out</span></button>
           <div className="flex items-center gap-3 rounded-xl bg-[#30435F] p-2 lg:p-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-[#142440]">
@@ -153,18 +126,6 @@ export default function Dashboard({ user, api, onLogout }) {
           </p>
 
           <div className="flex items-center gap-3">
-            <select
-              aria-label="Language"
-              defaultValue=""
-              onChange={() => comingSoon('Translations')}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
-            >
-              <option value="" disabled>Language</option>
-              <option value="en">English</option>
-              <option value="ar">العربية</option>
-              <option value="fr">Français</option>
-            </select>
-
             <span className="hidden rounded-lg border border-slate-200 px-4 py-2 text-xs sm:block">
               {user.pharmacy_name || 'No pharmacy assigned'}
             </span>
